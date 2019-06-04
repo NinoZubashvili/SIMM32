@@ -1,0 +1,261 @@
+* Encoding: UTF-8.
+*Data screening and cleaning
+
+FREQUENCIES VARIABLES=pain sex age STAI_trait pain_cat cortisol_serum cortisol_saliva mindfulness 
+  /ORDER=ANALYSIS.
+
+RECODE age (222=0) (30 thru 50=1) (ELSE=SYSMIS) INTO Age_filter. 
+EXECUTE. 
+USE ALL. 
+FILTER BY Age_filter. 
+EXECUTE. 
+
+*Preliminary (Univariate) analysis
+
+SPSSINC CREATE DUMMIES VARIABLE=sex 
+ROOTNAME1=Sex_Dummy 
+/OPTIONS ORDER=A USEVALUELABELS=YES USEML=YES OMITFIRST=NO.
+
+DESCRIPTIVES VARIABLES=pain age Sex_Dummy_2 Sex_Dummy_1 STAI_trait pain_cat cortisol_serum 
+    cortisol_saliva mindfulness 
+  /STATISTICS=MEAN STDDEV MIN MAX KURTOSIS SKEWNESS.
+
+EXAMINE VARIABLES=pain age Sex_Dummy_2 Sex_Dummy_1 STAI_trait pain_cat cortisol_serum 
+    cortisol_saliva mindfulness 
+  /ID=ID 
+  /PLOT BOXPLOT HISTOGRAM NPPLOT 
+  /COMPARE GROUPS 
+  /STATISTICS DESCRIPTIVES EXTREME 
+  /CINTERVAL 95 
+  /MISSING LISTWISE 
+  /NOTOTAL.
+
+*Multivariate analysis 
+*Hierarchical regression model
+
+REGRESSION 
+  /MISSING LISTWISE 
+  /STATISTICS COEFF OUTS CI(95) BCOV R ANOVA COLLIN TOL CHANGE 
+  /CRITERIA=PIN(.05) POUT(.10) 
+  /NOORIGIN 
+  /DEPENDENT pain 
+  /METHOD=ENTER age Sex_Dummy_1 
+  /METHOD=ENTER STAI_trait pain_cat cortisol_serum cortisol_saliva mindfulness 
+  /SCATTERPLOT=(*ZRESID ,*ZPRED) 
+  /RESIDUALS HISTOGRAM(ZRESID) NORMPROB(ZRESID) 
+  /SAVE PRED COOK RESID.
+
+*Cook's distance
+
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=ID COO_1 MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: ID=col(source(s), name("ID"), unit.category()) 
+  DATA: COO_1=col(source(s), name("COO_1")) 
+  GUIDE: axis(dim(1), label("ID")) 
+  GUIDE: axis(dim(2), label("Cook's Distance")) 
+  SCALE: linear(dim(2), include(0)) 
+  ELEMENT: point(position(ID*COO_1)) 
+END GPL.
+ 
+SORT CASES BY COO_1(D).
+SORT CASES BY ID(A).
+
+*Normality test
+
+EXAMINE VARIABLES=RES_1 
+  /PLOT BOXPLOT HISTOGRAM NPPLOT 
+  /COMPARE GROUPS 
+  /STATISTICS DESCRIPTIVES 
+  /CINTERVAL 95 
+  /MISSING LISTWISE 
+  /NOTOTAL.
+
+BOOTSTRAP 
+  /SAMPLING METHOD=SIMPLE 
+  /VARIABLES TARGET=pain INPUT=  age Sex_Dummy_1 STAI_trait pain_cat cortisol_serum 
+    cortisol_saliva mindfulness 
+  /CRITERIA CILEVEL=95 CITYPE=PERCENTILE  NSAMPLES=1000 
+  /MISSING USERMISSING=EXCLUDE.
+REGRESSION 
+  /MISSING LISTWISE 
+  /STATISTICS COEFF OUTS CI(95) R ANOVA COLLIN TOL 
+  /CRITERIA=PIN(.05) POUT(.10) 
+  /NOORIGIN 
+  /DEPENDENT pain 
+  /METHOD=ENTER age Sex_Dummy_1 
+  /METHOD=ENTER STAI_trait pain_cat cortisol_serum cortisol_saliva mindfulness 
+  /SCATTERPLOT=(*ZRESID ,*ZPRED) 
+  /RESIDUALS NORMPROB(ZRESID).
+
+*Linearity test for individual predictors
+
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=age pain MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: age=col(source(s), name("age")) 
+  DATA: pain=col(source(s), name("pain")) 
+  GUIDE: axis(dim(1), label("age")) 
+  GUIDE: axis(dim(2), label("pain")) 
+  ELEMENT: point(position(age*pain)) 
+END GPL. 
+
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=STAI_trait pain MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: STAI_trait=col(source(s), name("STAI_trait")) 
+  DATA: pain=col(source(s), name("pain")) 
+  GUIDE: axis(dim(1), label("STAI_trait")) 
+  GUIDE: axis(dim(2), label("pain")) 
+  ELEMENT: point(position(STAI_trait*pain)) 
+END GPL.
+
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=pain_cat pain MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: pain_cat=col(source(s), name("pain_cat")) 
+  DATA: pain=col(source(s), name("pain")) 
+  GUIDE: axis(dim(1), label("pain_cat")) 
+  GUIDE: axis(dim(2), label("pain")) 
+  ELEMENT: point(position(pain_cat*pain)) 
+END GPL.
+
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=cortisol_serum pain MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: cortisol_serum=col(source(s), name("cortisol_serum")) 
+  DATA: pain=col(source(s), name("pain")) 
+  GUIDE: axis(dim(1), label("cortisol_serum")) 
+  GUIDE: axis(dim(2), label("pain")) 
+  ELEMENT: point(position(cortisol_serum*pain)) 
+END GPL.
+
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=cortisol_saliva pain MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: cortisol_saliva=col(source(s), name("cortisol_saliva")) 
+  DATA: pain=col(source(s), name("pain")) 
+  GUIDE: axis(dim(1), label("cortisol_saliva")) 
+  GUIDE: axis(dim(2), label("pain")) 
+  ELEMENT: point(position(cortisol_saliva*pain)) 
+END GPL.
+
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=mindfulness pain MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: mindfulness=col(source(s), name("mindfulness")) 
+  DATA: pain=col(source(s), name("pain")) 
+  GUIDE: axis(dim(1), label("mindfulness")) 
+  GUIDE: axis(dim(2), label("pain")) 
+  ELEMENT: point(position(mindfulness*pain)) 
+END GPL.
+
+*Homoscedasticity
+
+COMPUTE RES_squared=RES_1 * RES_1. 
+EXECUTE.
+
+REGRESSION 
+  /MISSING LISTWISE 
+  /STATISTICS COEFF OUTS CI(95) BCOV R ANOVA COLLIN TOL CHANGE 
+  /CRITERIA=PIN(.05) POUT(.10) 
+  /NOORIGIN 
+  /DEPENDENT RES_squared 
+  /METHOD=ENTER age Sex_Dummy_1 
+  /METHOD=ENTER STAI_trait pain_cat cortisol_serum cortisol_saliva mindfulness 
+  /SCATTERPLOT=(*ZRESID ,*ZPRED) 
+  /RESIDUALS HISTOGRAM(ZRESID) NORMPROB(ZRESID) 
+  /SAVE PRED COOK RESID.
+
+*New hierarchical regression model (with excluded highly correlated variable)
+
+REGRESSION 
+  /MISSING LISTWISE 
+  /STATISTICS COEFF OUTS CI(95) BCOV R ANOVA COLLIN TOL CHANGE SELECTION
+  /CRITERIA=PIN(.05) POUT(.10) 
+  /NOORIGIN 
+  /DEPENDENT pain 
+  /METHOD=ENTER age Sex_Dummy_1 
+  /METHOD=ENTER STAI_trait pain_cat cortisol_serum mindfulness 
+  /SCATTERPLOT=(*ZRESID ,*ZPRED) 
+  /RESIDUALS HISTOGRAM(ZRESID) NORMPROB(ZRESID) 
+  /SAVE PRED COOK RESID.
+
+*Cook's distance
+
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=ID COO_3 MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: ID=col(source(s), name("ID"), unit.category()) 
+  DATA: COO_3=col(source(s), name("COO_3")) 
+  GUIDE: axis(dim(1), label("ID")) 
+  GUIDE: axis(dim(2), label("Cook's Distance")) 
+  SCALE: linear(dim(2), include(0)) 
+  ELEMENT: point(position(ID*COO_3)) 
+END GPL.
+
+*Normality test
+
+EXAMINE VARIABLES=RES_3 
+  /PLOT BOXPLOT HISTOGRAM NPPLOT 
+  /COMPARE GROUPS 
+  /STATISTICS DESCRIPTIVES 
+  /CINTERVAL 95 
+  /MISSING LISTWISE 
+  /NOTOTAL.
+
+BOOTSTRAP 
+  /SAMPLING METHOD=SIMPLE 
+  /VARIABLES TARGET=pain INPUT=  age Sex_Dummy_1 STAI_trait pain_cat cortisol_serum 
+    mindfulness 
+  /CRITERIA CILEVEL=95 CITYPE=PERCENTILE  NSAMPLES=1000 
+  /MISSING USERMISSING=EXCLUDE.
+REGRESSION 
+  /MISSING LISTWISE 
+  /STATISTICS COEFF OUTS CI(95) R ANOVA COLLIN TOL 
+  /CRITERIA=PIN(.05) POUT(.10) 
+  /NOORIGIN 
+  /DEPENDENT pain 
+  /METHOD=ENTER age Sex_Dummy_1 
+  /METHOD=ENTER STAI_trait pain_cat cortisol_serum mindfulness 
+  /SCATTERPLOT=(*ZRESID ,*ZPRED) 
+  /RESIDUALS NORMPROB(ZRESID).
+
+*Homoscedasticity
+
+COMPUTE RES_new_squared=RES_3 * RES_3. 
+EXECUTE.
+
+REGRESSION 
+  /MISSING LISTWISE 
+  /STATISTICS COEFF OUTS CI(95) BCOV R ANOVA COLLIN TOL CHANGE 
+  /CRITERIA=PIN(.05) POUT(.10) 
+  /NOORIGIN 
+  /DEPENDENT RES_new_squared 
+  /METHOD=ENTER age Sex_Dummy_1 
+  /METHOD=ENTER STAI_trait pain_cat cortisol_serum mindfulness 
+  /SCATTERPLOT=(*ZRESID ,*ZPRED) 
+  /RESIDUALS HISTOGRAM(ZRESID) NORMPROB(ZRESID) 
+  /SAVE PRED COOK RESID.
+
+*Prediction for a new data
+
+COMPUTE Pain_predicted_value=4.761 + age * -0.079 + Sex_Dummy_1 * -0.326 + STAI_trait * 0.017 + pain_cat * 0.057 + cortisol_serum * 0.392 + mindfulness * -0.282.
+EXECUTE.
+
