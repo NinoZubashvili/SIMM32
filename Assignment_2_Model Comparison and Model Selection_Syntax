@@ -1,0 +1,201 @@
+* Encoding: UTF-8.
+*Dataset 1
+*Data screening and cleaning
+
+RECODE age (222=0) (30 thru 50=1) (ELSE=SYSMIS) INTO Age_filter. 
+EXECUTE. 
+USE ALL. 
+FILTER BY Age_filter. 
+EXECUTE. 
+
+SPSSINC CREATE DUMMIES VARIABLE=sex 
+ROOTNAME1=Sex_Dummy 
+/OPTIONS ORDER=A USEVALUELABELS=YES USEML=YES OMITFIRST=NO.
+
+*Backward regression - Initial Model
+
+REGRESSION 
+  /MISSING LISTWISE 
+  /STATISTICS COEFF OUTS CI(95) BCOV R ANOVA CHANGE 
+  /CRITERIA=PIN(.05) POUT(.10) 
+  /NOORIGIN 
+  /DEPENDENT pain 
+  /METHOD=BACKWARD age Sex_Dummy_1 STAI_trait pain_cat cortisol_serum mindfulness weight 
+  /SCATTERPLOT=(*ZRESID ,*ZPRED) 
+  /RESIDUALS HISTOGRAM(ZRESID) NORMPROB(ZRESID) 
+  /SAVE PRED COOK RESID.
+
+*Backward model
+
+REGRESSION 
+  /MISSING LISTWISE 
+  /STATISTICS COEFF OUTS CI(95) BCOV R ANOVA COLLIN TOL CHANGE SELECTION
+  /CRITERIA=PIN(.05) POUT(.10) 
+  /NOORIGIN 
+  /DEPENDENT pain 
+  /METHOD=ENTER age Sex_Dummy_1 pain_cat cortisol_serum mindfulness 
+  /SCATTERPLOT=(*ZRESID ,*ZPRED) 
+  /RESIDUALS HISTOGRAM(ZRESID) NORMPROB(ZRESID) 
+  /SAVE PRED COOK RESID.
+
+*Model diagnistics
+*Cook's distance
+
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=ID COO_3 MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: ID=col(source(s), name("ID"), unit.category()) 
+  DATA: COO_3=col(source(s), name("COO_3")) 
+  GUIDE: axis(dim(1), label("ID")) 
+  GUIDE: axis(dim(2), label("Cook's Distance")) 
+  SCALE: linear(dim(2), include(0)) 
+  ELEMENT: point(position(ID*COO_3)) 
+END GPL.
+
+*Normality test
+
+EXAMINE VARIABLES=RES_3 
+  /PLOT BOXPLOT HISTOGRAM NPPLOT 
+  /COMPARE GROUPS 
+  /STATISTICS DESCRIPTIVES 
+  /CINTERVAL 95 
+  /MISSING LISTWISE 
+  /NOTOTAL.
+
+*Linearity test for individual predictors
+
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=age pain MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: age=col(source(s), name("age")) 
+  DATA: pain=col(source(s), name("pain")) 
+  GUIDE: axis(dim(1), label("age")) 
+  GUIDE: axis(dim(2), label("pain")) 
+  ELEMENT: point(position(age*pain)) 
+END GPL. 
+
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=pain_cat pain MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: pain_cat=col(source(s), name("pain_cat")) 
+  DATA: pain=col(source(s), name("pain")) 
+  GUIDE: axis(dim(1), label("pain_cat")) 
+  GUIDE: axis(dim(2), label("pain")) 
+  ELEMENT: point(position(pain_cat*pain)) 
+END GPL.
+
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=cortisol_serum pain MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: cortisol_serum=col(source(s), name("cortisol_serum")) 
+  DATA: pain=col(source(s), name("pain")) 
+  GUIDE: axis(dim(1), label("cortisol_serum")) 
+  GUIDE: axis(dim(2), label("pain")) 
+  ELEMENT: point(position(cortisol_serum*pain)) 
+END GPL.
+
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=mindfulness pain MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: mindfulness=col(source(s), name("mindfulness")) 
+  DATA: pain=col(source(s), name("pain")) 
+  GUIDE: axis(dim(1), label("mindfulness")) 
+  GUIDE: axis(dim(2), label("pain")) 
+  ELEMENT: point(position(mindfulness*pain)) 
+END GPL.
+
+*Homoscedasticity
+
+COMPUTE RES_3_sq=RES_3 * RES_3. 
+EXECUTE.
+
+REGRESSION 
+  /MISSING LISTWISE 
+  /STATISTICS COEFF OUTS CI(95) BCOV R ANOVA 
+  /CRITERIA=PIN(.05) POUT(.10) 
+  /NOORIGIN 
+  /DEPENDENT RES_3_sq 
+  /METHOD=ENTER age Sex_Dummy_1 pain_cat cortisol_serum mindfulness 
+
+*Theory-based model
+
+REGRESSION 
+  /MISSING LISTWISE 
+  /STATISTICS COEFF OUTS CI(95) BCOV R ANOVA COLLIN TOL CHANGE SELECTION
+  /CRITERIA=PIN(.05) POUT(.10) 
+  /NOORIGIN 
+  /DEPENDENT pain 
+  /METHOD=ENTER age Sex_Dummy_1 pain_cat STAI_trait cortisol_serum mindfulness 
+  /SCATTERPLOT=(*ZRESID ,*ZPRED) 
+  /RESIDUALS HISTOGRAM(ZRESID) NORMPROB(ZRESID) 
+  /SAVE PRED COOK RESID.
+
+*Prediction from a backward model for a new data
+
+COMPUTE Pain_predicted_backward=4.915 + age * -0.075 + Sex_Dummy_1 * -0.309 + pain_cat * 0.066 + cortisol_serum * 0.411 + mindfulness * -0.290.
+EXECUTE.
+
+*Prediction from a theory-based model for a new data
+
+COMPUTE Pain_predicted_theory=4.761 + age * -0.079 + Sex_Dummy_1 * -0.326 + STAI_trait * 0.017 + pain_cat * 0.057 + cortisol_serum * 0.392 + mindfulness * -0.282.
+EXECUTE.
+
+*Model comparison
+*Initial and backward model comparison
+
+REGRESSION 
+  /MISSING LISTWISE 
+  /STATISTICS COEFF OUTS R ANOVA CHANGE SELECTION
+  /CRITERIA=PIN(.05) POUT(.10) 
+  /NOORIGIN 
+  /DEPENDENT pain 
+  /METHOD=ENTER age STAI_trait pain_cat cortisol_serum mindfulness weight Sex_Dummy_1 
+  /METHOD=REMOVE STAI_trait weight.
+
+*Theory-based and backward model comparison
+
+REGRESSION 
+  /MISSING LISTWISE 
+  /STATISTICS COEFF OUTS R ANOVA CHANGE SELECTION
+  /CRITERIA=PIN(.05) POUT(.10) 
+  /NOORIGIN 
+  /DEPENDENT pain 
+  /METHOD=ENTER age STAI_trait pain_cat cortisol_serum mindfulness Sex_Dummy_1 
+  /METHOD=REMOVE STAI_trait 
+
+*Dataset 2
+
+SPSSINC CREATE DUMMIES VARIABLE=sex 
+ROOTNAME1=Sex_Dummy 
+/OPTIONS ORDER=A USEVALUELABELS=YES USEML=YES OMITFIRST=NO.
+
+*Prediction from a backward model 
+
+COMPUTE Pain_predicted_backward=4.915 + age * -0.075 + Sex_Dummy_1 * -0.309 + pain_cat * 0.066 + cortisol_serum * 0.411 + mindfulness * -0.290.
+EXECUTE.
+
+*Prediction from a theory-based model 
+
+COMPUTE Pain_predicted_theory=4.761 + age * -0.079 + Sex_Dummy_1 * -0.326 + STAI_trait * 0.017 + pain_cat * 0.057 + cortisol_serum * 0.392 + mindfulness * -0.282.
+EXECUTE.
+
+*Comparison of predictive abilities on Dataset 2
+
+COMPUTE Pain_pred_back_sq=(pain-Pain_predicted_backward)*(pain-Pain_predicted_backward).
+EXECUTE.
+
+COMPUTE Pain_pred_theory_sq=(pain-Pain_predicted_theory)*(pain-Pain_predicted_theory).
+EXECUTE.
+
+DESCRIPTIVES VARIABLES= Pain_pred_back_sq Pain_pred_theory_sq 
+  /STATISTICS=MEAN SUM STDDEV MIN MAX.
