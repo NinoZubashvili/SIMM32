@@ -1,0 +1,239 @@
+* Encoding: UTF-8.
+*Dataset 3
+
+*Data screening and cleaning
+
+FREQUENCIES VARIABLES= pain sex age STAI_trait pain_cat cortisol_serum mindfulness hospital
+  /ORDER=ANALYSIS.
+
+EXAMINE VARIABLES=pain age STAI_trait pain_cat cortisol_serum mindfulness  
+  /ID=ID 
+  /PLOT BOXPLOT HISTOGRAM NPPLOT 
+  /COMPARE GROUPS 
+  /STATISTICS DESCRIPTIVES EXTREME 
+  /CINTERVAL 95 
+  /MISSING LISTWISE 
+  /NOTOTAL.
+
+SPSSINC CREATE DUMMIES VARIABLE=sex 
+ROOTNAME1=Sex_Dummy 
+/OPTIONS ORDER=A USEVALUELABELS=YES USEML=YES OMITFIRST=NO.
+
+*Linear mixed model on data file 3
+
+MIXED pain BY Sex_Dummy_1 WITH age STAI_trait pain_cat cortisol_serum mindfulness 
+  /CRITERIA=CIN(95) MXITER(100) MXSTEP(10) SCORING(1) SINGULAR(0.000000000001) HCONVERGE(0, 
+    ABSOLUTE) LCONVERGE(0, ABSOLUTE) PCONVERGE(0.000001, ABSOLUTE)
+  /FIXED=age Sex_Dummy_1 STAI_trait pain_cat cortisol_serum mindfulness | SSTYPE(3) 
+  /METHOD=REML
+  /PRINT=SOLUTION
+  /RANDOM=INTERCEPT | SUBJECT(hospital) COVTYPE(VC)
+  /SAVE=FIXPRED.
+
+*Model diagnostics
+*Cheking for outliers
+
+GGRAPH
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=hospital pain MISSING=LISTWISE REPORTMISSING=NO
+  /GRAPHSPEC SOURCE=INLINE.
+BEGIN GPL
+  SOURCE: s=userSource(id("graphdataset"))
+  DATA: hospital=col(source(s), name("hospital"), unit.category())
+  DATA: pain=col(source(s), name("pain"))
+  DATA: id=col(source(s), name("$CASENUM"), unit.category())
+  GUIDE: axis(dim(1), label("hospital"))
+  GUIDE: axis(dim(2), label("pain"))
+  GUIDE: text.title(label("Simple Boxplot of pain by hospital"))
+  SCALE: linear(dim(2), include(0))
+  ELEMENT: schema(position(bin.quantile.letter(hospital*pain)), label(id))
+END GPL.
+
+*Checking normality
+
+MIXED pain BY Sex_Dummy_1 WITH age STAI_trait pain_cat cortisol_serum mindfulness 
+  /CRITERIA=CIN(95) MXITER(100) MXSTEP(10) SCORING(1) SINGULAR(0.000000000001) HCONVERGE(0, 
+    ABSOLUTE) LCONVERGE(0, ABSOLUTE) PCONVERGE(0.000001, ABSOLUTE)
+  /FIXED=age Sex_Dummy_1 STAI_trait pain_cat cortisol_serum mindfulness | SSTYPE(3) 
+  /METHOD=REML
+  /PRINT=SOLUTION
+  /RANDOM=INTERCEPT | SUBJECT(hospital) COVTYPE(VC)
+  /SAVE= PRED RESID.
+
+EXAMINE VARIABLES=RESID_1
+  /PLOT BOXPLOT STEMLEAF HISTOGRAM NPPLOT
+  /COMPARE GROUPS
+  /STATISTICS DESCRIPTIVES
+  /CINTERVAL 95
+  /MISSING LISTWISE
+  /NOTOTAL.
+
+*Checking linearity for individual predictors
+
+* Chart Builder. 
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=PRED_1 RESID_1 MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: PRED_1=col(source(s), name("PRED_1")) 
+  DATA: RESID_1=col(source(s), name("RESID_1")) 
+  GUIDE: axis(dim(1), label("Predicted Values")) 
+  GUIDE: axis(dim(2), label("Residuals")) 
+  ELEMENT: point(position(PRED_1*RESID_1)) 
+END GPL.
+
+* Chart Builder. 
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=pain RESID_1 MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: pain=col(source(s), name("pain")) 
+  DATA: RESID_1=col(source(s), name("RESID_1")) 
+  GUIDE: axis(dim(1), label("pain")) 
+  GUIDE: axis(dim(2), label("Residuals")) 
+  ELEMENT: point(position(pain*RESID_1)) 
+END GPL.
+
+* Chart Builder. 
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=age RESID_1 MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: age=col(source(s), name("age")) 
+  DATA: RESID_1=col(source(s), name("RESID_1")) 
+  GUIDE: axis(dim(1), label("age")) 
+  GUIDE: axis(dim(2), label("Residuals")) 
+  ELEMENT: point(position(age*RESID_1)) 
+END GPL.
+
+* Chart Builder. 
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=STAI_trait RESID_1 MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: STAI_trait=col(source(s), name("STAI_trait")) 
+  DATA: RESID_1=col(source(s), name("RESID_1")) 
+  GUIDE: axis(dim(1), label("STAI_trait")) 
+  GUIDE: axis(dim(2), label("Residuals")) 
+  ELEMENT: point(position(STAI_trait*RESID_1)) 
+END GPL.
+
+* Chart Builder. 
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=pain_cat RESID_1 MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: pain_cat=col(source(s), name("pain_cat")) 
+  DATA: RESID_1=col(source(s), name("RESID_1")) 
+  GUIDE: axis(dim(1), label("pain_cat")) 
+  GUIDE: axis(dim(2), label("Residuals")) 
+  ELEMENT: point(position(pain_cat*RESID_1)) 
+END GPL.
+
+* Chart Builder. 
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=cortisol_serum RESID_1 MISSING=LISTWISE 
+    REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: cortisol_serum=col(source(s), name("cortisol_serum")) 
+  DATA: RESID_1=col(source(s), name("RESID_1")) 
+  GUIDE: axis(dim(1), label("cortisol_serum")) 
+  GUIDE: axis(dim(2), label("Residuals")) 
+  ELEMENT: point(position(cortisol_serum*RESID_1)) 
+END GPL.
+
+* Chart Builder. 
+GGRAPH 
+  /GRAPHDATASET NAME="graphdataset" VARIABLES=mindfulness RESID_1 MISSING=LISTWISE REPORTMISSING=NO 
+  /GRAPHSPEC SOURCE=INLINE. 
+BEGIN GPL 
+  SOURCE: s=userSource(id("graphdataset")) 
+  DATA: mindfulness=col(source(s), name("mindfulness")) 
+  DATA: RESID_1=col(source(s), name("RESID_1")) 
+  GUIDE: axis(dim(1), label("mindfulness")) 
+  GUIDE: axis(dim(2), label("Residuals")) 
+  ELEMENT: point(position(mindfulness*RESID_1)) 
+END GPL.
+
+*Checking homoscedasticity
+
+SPSSINC CREATE DUMMIES VARIABLE=hospital 
+ROOTNAME1=hospital_dummy 
+/OPTIONS ORDER=A USEVALUELABELS=YES USEML=YES OMITFIRST=NO.
+
+COMPUTE RESID_1_sq=RESID_1*RESID_1.
+EXECUTE.
+
+REGRESSION
+  /MISSING LISTWISE
+  /STATISTICS COEFF OUTS CI(95) BCOV R ANOVA
+  /CRITERIA=PIN(.05) POUT(.10)
+  /NOORIGIN 
+  /DEPENDENT RESID_1_sq
+  /METHOD=ENTER hospital_dummy_2 hospital_dummy_3 hospital_dummy_4 hospital_dummy_5 
+    hospital_dummy_6 hospital_dummy_7 hospital_dummy_8 hospital_dummy_9 hospital_dummy_10.
+
+*Checking multicolinearity
+
+CORRELATIONS
+/VARIABLES=pain Sex_Dummy_1 age STAI_trait pain_cat cortisol_serum mindfulness  /PRINT=TWOTAIL NOSIG
+/MISSING=PAIRWISE.
+
+*Determining significance of the model as a whole
+
+MIXED pain 
+  /CRITERIA=CIN(95) MXITER(100) MXSTEP(10) SCORING(1) SINGULAR(0.000000000001) HCONVERGE(0, 
+    ABSOLUTE) LCONVERGE(0, ABSOLUTE) PCONVERGE(0.000001, ABSOLUTE) 
+  /METHOD=REML 
+  /PRINT=SOLUTION 
+  /RANDOM=INTERCEPT | SUBJECT(hospital) COVTYPE(VC).
+
+*Calculating R squares
+
+DESCRIPTIVES VARIABLES=FXPRED_1 
+  /STATISTICS=VARIANCE.
+
+COMPUTE Marginal_R_sq=.792 / (.792 + .163902 + 1.491078). 
+EXECUTE.
+
+COMPUTE Conditional_R_sq=(.792 + .163902) / (.792 + .163902 + 1.491078). 
+EXECUTE.
+
+*Obtaining prediction
+
+COMPUTE Pain_predicted=2.233026 + age * -.026097 + Sex_Dummy_1 * -.382297 + STAI_trait * -.014313 + pain_cat * .081692 + cortisol_serum * .533073 + mindfulness * -.239227.
+EXECUTE.
+
+*Dataset 4
+
+SPSSINC CREATE DUMMIES VARIABLE=sex 
+ROOTNAME1=Sex_Dummy 
+/OPTIONS ORDER=A USEVALUELABELS=YES USEML=YES OMITFIRST=NO.
+
+*Prediction from a dataset 3
+
+COMPUTE Pain_predicted=2.233026 + age * -.026097 + Sex_Dummy_1 * -.382297 + STAI_trait * -.014313 + pain_cat * .081692 + cortisol_serum * .533073 + mindfulness * -.239227.
+EXECUTE.
+
+*Computing variance
+
+DESCRIPTIVES VARIABLES=pain 
+  /STATISTICS=MEAN.
+
+COMPUTE Pain_TSS=(pain-4.992104) * (pain-4.992104).
+EXECUTE.
+
+COMPUTE Pain_RSS=(pain-Pain_predicted) * (pain-Pain_predicted).
+EXECUTE.
+
+DESCRIPTIVES VARIABLES=Pain_RSS Pain_TSS 
+  /STATISTICS=SUM.
+
+COMPUTE Pain_variance=1-(387.42/607.90).
+EXECUTE.
